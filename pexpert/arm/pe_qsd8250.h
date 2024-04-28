@@ -41,6 +41,8 @@
 #define __ALWAYS_INLINE
 #endif
 
+// #define NR_IRQS (NR_MSM_IRQS + NR_GPIO_IRQS + NR_BOARD_IRQS)
+
 /* Ops */
 #define REG64(addr) ((volatile uint64_t *)(addr))
 #define REG32(addr) ((volatile uint32_t *)(addr))
