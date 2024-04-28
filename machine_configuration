@@ -6,6 +6,7 @@ debug arm s5l8920x
 debug arm s5l8922x
 debug arm omap3430_rx51
 debug arm msm8974_rm1045
+debug arm qsd8250_leo
 development arm omap335x
 development arm omap3530
 development arm armpba8
@@ -14,6 +15,7 @@ development arm s5l8920x
 development arm s5l8922x
 development arm omap3430_rx51
 development arm msm8974_rm1045
+development arm qsd8250_leo
 release arm omap335x
 release arm omap3530
 release arm armpba8
@@ -22,3 +24,5 @@ release arm s5l8920x
 release arm s5l8922x
 release arm omap3430_rx51
 release arm msm8974_rm1045
+release arm qsd8250_leo
+

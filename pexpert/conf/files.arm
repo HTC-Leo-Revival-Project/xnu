@@ -20,3 +20,4 @@ pexpert/arm/pe_s5l8930x.c		standard
 pexpert/arm/pe_apq8060.c		standard
 pexpert/arm/pe_imx53.c			standard
 pexpert/arm/pe_msm8974.c        standard
+pexpert/arm/pe_qsd8250_leo.c	standard

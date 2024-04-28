@@ -43,6 +43,10 @@
 
 /* ARMv7 Cortex-A8 platforms. */
 
+#ifdef BOARD_CONFIG_QSD8250_LEO
+#define __ARM_PROCESSOR_CLASS_CORTEX_A8__               1
+#endif
+
 #ifdef BOARD_CONFIG_S5L8920X
 #define __ARM_PROCESSOR_CLASS_CORTEX_A8__		1
 #endif
