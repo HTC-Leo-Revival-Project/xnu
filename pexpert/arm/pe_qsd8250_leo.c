@@ -105,7 +105,7 @@ void qsd8250_timebase_init(void)
     /*
      * Enable the interrupt. 
      */
-    writel(VIC_INT_EN0, value);
+    writel(value, gQSD8250Vic0Base + 0x0010);
     /*
      * Enable interrupts. 
      */
@@ -129,8 +129,8 @@ uint64_t qsd8250_get_timebase(void)
 {
     uint32_t timestamp;
 
-    if (!clock_initialized)
-        return 0;
+//    if (!clock_initialized)
+//        return 0;
 
     timestamp = qsd8250_timer_value();
 
@@ -151,8 +151,8 @@ void qsd8250_timer_settimerperiod(uint64_t TimerPeriod)
 	if (TimerPeriod == 0) 
   	{
     		/* Turn off the timer */
-    		writel(DGT_ENABLE, 0);
-    		writel(DGT_CLEAR, 0);
+    		writel(0, gQSD8250TimerBase + 0x0018);
+    		writel(0, gQSD8250TimerBase + 0x001C);
     		ml_set_interrupts_enabled(FALSE);
 	}
 
@@ -164,9 +164,9 @@ void qsd8250_timer_settimerperiod(uint64_t TimerPeriod)
     		/* The following code expects time in ms */
     		TimerCount = TimerPeriod / 10000;
 
-    		writel(DGT_MATCH_VAL, TimerCount * (DGT_HZ / 1000));
-	  	writel(DGT_CLEAR, 0);
-	  	writel(DGT_ENABLE, DGT_ENABLE_EN | DGT_ENABLE_CLR_ON_MATCH_EN);
+    		writel(TimerCount * (DGT_HZ / 1000), gQSD8250TimerBase + 0x0010);
+	  	writel(0, gQSD8250TimerBase + 0x001C);
+	  	writel(3, gQSD8250TimerBase + 0x0018);
 
     		/* Enable the timer interrupt */
    		ml_set_interrupts_enabled(TRUE);
@@ -179,7 +179,7 @@ void qsd8250_timer_settimerperiod(uint64_t TimerPeriod)
 
 uint64_t qsd8250_timer_value(void)
 {
-    uint64_t ret = (uint64_t) ((uint32_t) 0xFFFFFFFF - (uint32_t) HwReg(DGT_COUNT_VAL));
+    uint64_t ret = (uint64_t) ((uint32_t) 0xFFFFFFFF - (uint32_t) HwReg(gQSD8250TimerBase + 0x0014));
 
     /*
      * HACK 
@@ -210,7 +210,7 @@ void qsd8250_timer_enabled(int enable)
 
 void qsd8250_handle_interrupt(void *context)
 {
-    uint32_t current_irq = HwReg(VIC_IRQ_VEC_RD);
+    uint32_t current_irq = HwReg(gQSD8250Vic0Base + 0x00D0);
     // gQSD8250VICVECWR = ml_io_map(VIC_IRQ_VEC_WR, PAGE_SIZE);
     /*
      * Timer IRQs are handeled by us. 
@@ -235,7 +235,7 @@ void qsd8250_handle_interrupt(void *context)
          * EOI. 
          */
         // HwReg(gQSD8250VICVECWR) = 0;
-	writel(VIC_IRQ_VEC_WR, 0);
+	writel(0, gQSD8250Vic0Base + 0x00D8);
 
         /*
          * Enable timer. 
@@ -281,12 +281,12 @@ int qsd8250_VICInit(void)
      	*/
     	ml_set_interrupts_enabled(FALSE);
 	/* do qcom voodoo magic */
-	writel(VIC_INT_CLEAR0, 0xffffffff);
-	writel(VIC_INT_SELECT0, 0);
-	writel(VIC_INT_TYPE0, 0xffffffff);
-	writel(VIC_CONFIG, 0);
-	writel(VIC_INT_EN0, 1);
-	writel(VIC_INT_MASTEREN, 1);
+	writel(0xffffffff, gQSD8250Vic0Base + 0x00B0);
+	writel(0, gQSD8250Vic0Base + 0x0000);
+	writel(0xffffffff, gQSD8250Vic0Base + 0x0040);
+	writel(0, gQSD8250Vic0Base + 0x006C);
+	writel(1, gQSD8250Vic0Base + 0x0010);
+	writel(1, gQSD8250Vic0Base + 0x0068);
 
 	return 0;
 }
