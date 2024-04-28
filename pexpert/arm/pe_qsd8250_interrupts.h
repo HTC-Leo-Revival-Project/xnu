@@ -24,7 +24,7 @@
 #define __PLATFORM_INTERRUPTS_H
 
 
-#define VIC_REG(off) (MSM_VIC_BASE + (off))
+#define VIC_REG(off) ((off))
 
 #define VIC_INT_SELECT0     VIC_REG(0x0000)  /* 1: FIQ, 0: IRQ */
 #define VIC_INT_SELECT1     VIC_REG(0x0004)  /* 1: FIQ, 0: IRQ */

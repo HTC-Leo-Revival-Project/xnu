@@ -86,34 +86,45 @@ static void timer_configure(void)
 uint64_t qsd8250_timer_value(void);
 void qsd8250_timer_enabled(int enable);
 
+void vic_unmask_interrupt(int irq_num)
+{
+  	unsigned reg = (irq_num > 31) ? VIC_INT_ENSET1 : VIC_INT_ENSET0;
+	unsigned bit = 1 << (irq_num & 31);
+	HwReg(gQSD8250Vic0Base + reg) = (bit);
+}
+
+void vic_mask_interrupt(int irq_num)
+{
+  	unsigned reg = (irq_num > 31) ? VIC_INT_ENCLEAR1 : VIC_INT_ENCLEAR0;
+	unsigned bit = 1 << (irq_num & 31);
+	HwReg(gQSD8250Vic0Base + reg) = (bit);
+}
+
 void qsd8250_timebase_init(void)
 {
-    uint32_t value = HwReg(VIC_INT_EN0) | (1 << 5) | (1 << 6);
-    gQSD8250TimerBase = ml_io_map(MSM_GPT_BASE, PAGE_SIZE);
-    assert(gQSD8250TimerBase);
-    kprintf("timebase init: gQSD8250TimerBase assert");
     /*
      * Set rtclock stuff 
      */
     timer_configure();
-    kprintf("timebase init: called timer_configure");
     /*
      * Disable the timer. 
      */
     qsd8250_timer_enabled(FALSE);
-    kprintf("timebase init: disabled timer");
-    /*
-     * Wait for it. 
-     */
-    kprintf(KPRINTF_PREFIX "waiting for system timer to come up...\n");
+
+	/* unmask interrupt */
+	vic_unmask_interrupt(INT_DEBUG_TIMER_EXP);
+
+	/* Enable interrupts. */
+    ml_set_interrupts_enabled(TRUE);
+
+    /* enable timer */
     qsd8250_timer_enabled(TRUE);
-    kprintf("timebase init: timer enabled");
+
+	/* Wait for pong. */
     clock_initialized = TRUE;
-    kprintf("timebase init: clock init true");
     while (!clock_had_irq)
         barrier();
-	kprintf("timebase init: clock didnt have irq");
-    kprintf("timebase init: leaving.");
+
     return;
 }
 
@@ -136,42 +147,6 @@ uint64_t qsd8250_get_timebase(void)
     }
 }
 
-void qsd8250_timer_settimerperiod(uint64_t TimerPeriod)
-{
-	uint64_t       TimerCount;
-	uint64_t mTimerPeriod = 0;
-	if (TimerPeriod == 0) 
-  	{
-    		/* Turn off the timer */
-    		writel(0, gQSD8250TimerBase + 0x0018);
-    		writel(0, gQSD8250TimerBase + 0x001C);
-    		ml_set_interrupts_enabled(FALSE);
-		kprintf("timerperiod: turned off timer");
-	}
-
-	else
-  	{
-		/* Disable the timer interrupt */
-    		ml_set_interrupts_enabled(FALSE);
-		kprintf("timerperiod: interrupt off");
-    		/* The following code expects time in ms */
-    		TimerCount = TimerPeriod / 10000;
-
-    		writel(TimerCount * (DGT_HZ / 1000), gQSD8250TimerBase + 0x0010);
-	  	writel(0, gQSD8250TimerBase + 0x001C);
-	  	writel(3, gQSD8250TimerBase + 0x0018);
-
-    		/* Enable the timer interrupt */
-   		ml_set_interrupts_enabled(TRUE);
-		kprintf("timerperiod: interrupt on");
-  	}
-
-  	/* Save the new timer period */
-  	mTimerPeriod = TimerPeriod;
-	kprintf("timerperiod: leaving.");
-  	return;
-}
-
 uint64_t qsd8250_timer_value(void)
 {
     uint64_t ret = (uint64_t) ((uint32_t) 0xFFFFFFFF - (uint32_t) HwReg(gQSD8250TimerBase + 0x0014));
@@ -183,25 +158,6 @@ uint64_t qsd8250_timer_value(void)
         ret = 0;
 
     return ret;
-}
-/*
-void qsd8250_timer_enabled(int enable)
-{
-	// do we ever disable this??
-	if (!enable) 
-	{
-		// disable timer
-		qsd8250_timer_settimerperiod(0);
-		kprintf("disable timer");
-	}
-	else
-	{
-		// set up default timer (1ms period)
-		qsd8250_timer_settimerperiod(1000);
-		kprintf("set 1ms timer");
-	}
-	kprintf("enabled timer, leaving.");
-	return;
 }
 
 /* TODO */
@@ -222,54 +178,52 @@ void qsd8250_timer_enabled(int enable)
 
 void qsd8250_handle_interrupt(void *context)
 {
-    uint32_t current_irq = HwReg(gQSD8250Vic0Base + 0x00D0);
-    // gQSD8250VICVECWR = ml_io_map(VIC_IRQ_VEC_WR, PAGE_SIZE);
-    /*
-     * Timer IRQs are handeled by us. 
-     */
+    uint32_t current_irq = HwReg(gQSD8250Vic0Base + VIC_IRQ_VEC_RD);
     
     if(current_irq > NR_IRQS) {
         kprintf(KPRINTF_PREFIX "Got a bogus IRQ?");
         return;
     }
-    if (current_irq == 8) {
+	/*
+     * Timer IRQs are handled by us. 
+     */
+    if (current_irq == INT_DEBUG_TIMER_EXP) {
         /*
          * Disable timer 
          */
         qsd8250_timer_enabled(FALSE);
-	kprintf("interrupt_handle: timer off");
+		kprintf("interrupt_handle: timer off");
         /*
          * Update absolute time 
          */
         clock_absolute_time += (clock_decrementer - (int64_t) qsd8250_timer_value());
-	kprintf("interrupt_handle: updated absolute time");
+		kprintf("interrupt_handle: updated absolute time");
         /*
          * Resynchronize deadlines. 
          */
         rtclock_intr((arm_saved_state_t *) context);
-	kprintf("interrupt_handle: synced deadlines");
+		kprintf("interrupt_handle: synced deadlines");
         /*
          * Enable timer. 
          */
         qsd8250_timer_enabled(TRUE);
-	kprintf("interrupt_handle: timer on");
+		kprintf("interrupt_handle: timer on");
 
         /*
          * We had an IRQ. 
          */
         clock_had_irq = TRUE;
-	kprintf("interrupt_handle: had an ir1");
+		kprintf("interrupt_handle: had an ir1");
     } else {
         irq_iokit_dispatch(current_irq);
     }
     /*
     * EOI. 
     */
-    // HwReg(gQSD8250VICVECWR) = 0;
-    writel(0, gQSD8250Vic0Base + 0x00D8);
-    kprintf("interrupt_handle: EOI");
+    HwReg(gQSD8250Vic0Base + VIC_IRQ_VEC_WR) = 0;
 
-    kprintf("interrupt_handle: leaving.");
+    //writel(0, gQSD8250Vic0Base + 0x00D8);
+    kprintf("interrupt_handle: EOI");
     return;
 }
 
@@ -298,26 +252,23 @@ int qsd8250_VICInit(void)
 	kprintf("VICInit: asserted");
 
 	/*
-     	* Disable interrupts 
-     	*/
-    	ml_set_interrupts_enabled(FALSE);
-	kprintf("VICInit: int off");
+    * Disable interrupts 
+    */
+    //ml_set_interrupts_enabled(FALSE);
+
+	kprintf("VICInit: start");
 	/* do qcom voodoo magic */
-	writel(0xffffffff, gQSD8250Vic0Base + 0x00B0);
-	writel(0xffffffff, gQSD8250Vic0Base + 0x00B4);
-	kprintf("VICInit: 1st writel");
-	writel(0, gQSD8250Vic0Base + 0x0000);
-	writel(0, gQSD8250Vic0Base + 0x0004);
-	kprintf("VICInit: 2st writel");
-	writel(0xffffffff, gQSD8250Vic0Base + 0x0040);
-	writel(0xffffffff, gQSD8250Vic0Base + 0x00044);
-	kprintf("VICInit: 3st writel");
-	writel(0, gQSD8250Vic0Base + 0x006C);
-	kprintf("VICInit: 4st writel");
-	writel(1, gQSD8250Vic0Base + 0x0010);
-	writel(1, gQSD8250Vic0Base + 0x0014);
-	kprintf("VICInit: 5st writel");
-	writel(1, gQSD8250Vic0Base + 0x0068);
+	HwReg(gQSD8250Vic0Base + VIC_INT_CLEAR0)   = 0xffffffff;
+	HwReg(gQSD8250Vic0Base + VIC_INT_CLEAR1)   = 0xffffffff;
+	HwReg(gQSD8250Vic0Base + VIC_INT_SELECT0)  = 0;
+	HwReg(gQSD8250Vic0Base + VIC_INT_SELECT1)  = 0;
+	HwReg(gQSD8250Vic0Base + VIC_INT_TYPE0)    = 0xffffffff;
+	HwReg(gQSD8250Vic0Base + VIC_INT_TYPE1)    = 0xffffffff;
+	HwReg(gQSD8250Vic0Base + VIC_CONFIG)       = 0;
+	HwReg(gQSD8250Vic0Base + VIC_INT_EN0)      = 1;
+	HwReg(gQSD8250Vic0Base + VIC_INT_EN1)      = 1;
+	HwReg(gQSD8250Vic0Base + VIC_INT_MASTEREN) = 1;
+
 	kprintf("VICInit: leaving.");
 	return 0;
 }

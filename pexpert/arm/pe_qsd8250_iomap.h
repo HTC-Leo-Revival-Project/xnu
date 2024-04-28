@@ -49,7 +49,7 @@
 #define A11S_CLK_CNTL         0xAC100100
 #define A11S_CLK_SEL          0xAC100104
 
-#define GPT_REG(off)         (MSM_GPT_BASE + (off))
+#define GPT_REG(off)         ((off)) //MSM_GPT_BASE + 
 #define GPT_MATCH_VAL        GPT_REG(0x0000)
 #define GPT_COUNT_VAL        GPT_REG(0x0004)
 #define GPT_ENABLE           GPT_REG(0x0008)
